@@ -1,0 +1,164 @@
+在WEB前端开发中，经常会有这样结构的代码
+
+//Business A
+$.getJSON('http://a.com/apiA', function(dataA) {
+	//todo
+});
+
+//Business B
+$.getJSON('http://a.com/apiB', function(dataB) {
+	//todo
+});
+
+//Business C
+$.getJSON('http://a.com/apiC', function(dataC) {
+	//todo
+});
+
+
+当你的展示界面依赖A,B,C三个业务数据，也就是说A,B,C三块数据全部异步加载完成以后，才能渲染视图。
+这个时候的流程控制就开始让人觉得有点麻烦了。初步的解决方案可以是这样的
+
+var proxy = {
+	data: [],
+	add: function(obj) {
+		this.data.push(obj);
+		this.check();
+	},
+	render: function() {
+		//在这里渲染你的视图界面
+	},
+	check: function() {
+		if (this.data.length === 3) {
+			this.render();
+		}
+	}
+};
+
+//Business A
+$.getJSON('http://a.com/apiA', function(dataA) {
+	proxy.add(dataA);
+});
+
+//Business B
+$.getJSON('http://a.com/apiB', function(dataB) {
+	proxy.add(dataB);
+});
+
+//Business C
+$.getJSON('http://a.com/apiC', function(dataC) {
+	proxy.add(dataC);
+});
+
+
+如果A,B,C三块业务本身就存在某依赖关系，事情又会变得更加复杂了。或许业务会变成这样B->A，B的业务依赖A接口的返回数据。
+并且要求A,B,C三块全部加载完成才能渲染界面。这个时候你的代码也许要变成这样。
+
+//Business A
+$.getJSON('http://a.com/apiA', function(dataA) {
+	proxy.add(dataA);
+
+	//Business B
+	$.getJSON('http://a.com/apiB', {param: dataA}, function(dataB) {
+		proxy.add(dataB);
+	});
+});
+
+//Business C
+$.getJSON('http://a.com/apiC', function(dataC) {
+	proxy.add(dataC);
+});
+
+可是显示的在代码里去维护这些依赖的逻辑，真的会让人很恶心，如果业务的依赖变得更加复杂，这种嵌套的回调函数一层又一层，真的让人受不了。
+或许你会这样写你的代码。
+
+//ajax A callback
+function callbackA(dataA) {
+	proxy.add(dataA);
+	$.getJSON('http://a.com/apiB', {param: dataA}, callbackB);
+}
+
+//ajax B callback
+function callbackB(dataB) {
+	proxy.add(dataB);
+	
+}
+
+//ajax C callback
+function callbackC(dataC) {
+	proxy.add(dataC);
+}
+
+//Business A
+$.getJSON('http://a.com/apiA', callbackA);
+
+//Business C
+$.getJSON('http://a.com/apiC', callbackC);
+
+虽然代码上看起一让人舒服一点，可是这种依赖关系的流程控制还是显示地，强制地被写入了代码之中。这样的一个问题就是当业务复杂的时候，就需要人为
+的去维护这种关系，去理清楚这种关系，而且代码也强制性的耦合在一起，如果你新接口这块业务，在不那么清楚业务依赖的前提下，要想很清楚的明了地看
+明白这些代码真的不是一件非常轻松的事情，你必须一个一个顺藤摸瓜式地去理。
+
+这也就是一开始说得，异步编程模式下，一堆的回调函数往往会把代码拆分的支离破碎的原因。我在想有没有什么方案能够解决这一问题，
+像seajs,requirejs那样解决依赖一样解决这种回调函数的问题。
+假设我们有一个这样的辅助类库，为了代码方便，暂且叫它Solve.js库吧
+
+//定义任务businessA
+Solve.register('businessA', function(taskA) {
+	$.getJSON('http://a.com/apiA', function(dataA) {
+
+		//输出这个任务的数据
+		taskA.output(dataA);
+	});
+});
+
+//定义任务businessB
+Solve.register('businessB', ['businessA'], function(dataA, taskB) {
+
+	$.getJSON('http://a.com/apiB', {param: dataA}, function(dataB) {
+		taskB.output(dataB);
+	});
+});
+
+//定义任务businessC
+Solve.register('businessC', function(taskC) {
+	$.getJSON('http://a.com/apiC', function(dataC) {
+
+		//输出这个任务的数据
+		taskC.output(dataC);
+	});
+});
+
+//定义任务default
+Solve.register('default', ['businessA', 'businessB', 'businessC'], function(dataA, dataB, dataC) {
+	//所有数据都加载到了，渲染视图
+	renderView(dataA, dataB, dataC);
+});
+
+//开始执行默认任务，或者可以称为是任务树的根任务，最上层的那个任务
+Solve.run('default');
+
+
+或许你看不懂我上面Solve库API设计的意图。我把Solve定义为一个任务管理器，它有一套简单的API
+Solve.register(taskName, dependences[], factory): 用来定义一个任务
+	-taskName(String) 字符串，声明任务的名称，区别于另一个任务的唯一标识，可以声明无名任务。
+	-dependences(Array) 数组，当前任务的依赖数组，依赖其他任务的名称，可以无依赖
+	-factory(Function) 任务工厂，此任务真正要执行的操作
+
+Solve.run(taskName)： 执行一个任务，如果传递的是任务名的数组，则是执行一组任务
+
+Solve会为注册的每一个任务生成一个对象task，此对象有一个output方法，导出该任务的执行结果。
+而且会将task对象作为factory的最后一个参数传递给factory执行。
+
+Solve自动管理任务的依赖执行，只需要调用Solve.run()执行默认的任务，Solve会自动根据声明的依赖去按顺序执行
+定义的任务。
+
+Solve解决了什么问题？
+解决了一层一层套回调函数的问题
+业务依赖显得更加清晰了
+
+当然，如果出现TaskA和TaskB互联依赖的情况，你可能需要考虑你服务器数据API设计问题了。
+
+
+好吧，当然Solve只是我针对这个问题想像出来的一组API，只是也是想像出来的，没有实现。当然，我觉得这样的类库在设计上是肯定可行的，也是可实现的，至于我会不会实现那是后话了。
+毕竟，除了麻木地写代码，我们也需要经常地去想想我们怎么改进我们的代码，我们怎么去解决开发过程中经常碰到那些恶心的代码。如果您有更好的想法，也可以跟我交流。
