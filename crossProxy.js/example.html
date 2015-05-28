@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>JavaScript Cross-domain Demo</title>
+    </head>
+    <body>
+        <h2>JavaScript Cross-domain Ajax Example.</h2>
+		
+		<p id='server-data-demo1'>loading...</p>
+		<p id='server-data-demo2'>loading...</p>
+		
+		<script type="text/javascript" src="http://a.com/crossProxy.js"></script>
+		<script type="text/javascript">
+			
+			var serverData1 = document.getElementById('server-data-demo1');
+			var serverData2 = document.getElementById('server-data-demo2');
+			var worldText = 'hello jock';
+			
+			crossProxy.ajax({
+				url: 'http://b.com/data.json',
+				type: 'GET',
+				success: function(text) {
+					serverData1.innerHTML = text;
+				},
+				error: function(e) {
+					serverData1.innerHTML = e;
+				}
+			});
+			
+			crossProxy.ajax({
+				url: 'http://b.com/data.json',
+				data: {
+					name: 'jock',
+					age: 25,
+					qq: '164068300',
+					phone: '',
+					love: undefined,
+					height: 173.4,
+					say: null,
+					world: worldText,
+					married: false
+				},
+				type: 'POST',
+				dataType: 'json',
+				async: true,
+				cache: false,
+				success: function(jsonObj) {
+					serverData2.innerHTML = jsonObj;
+				},
+				error: function(e) {
+					serverData2.innerHTML = e;
+				}
+			});
+	
+		</script>
+    </body>
+</html>

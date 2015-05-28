@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Cross Domain Proxy Page</title>
+    </head>
+    <body>
+		<p>You must put this html page in your local server and the request server.</p>
+		<h4>example:</h4>
+			<ul>
+				<li>http://a.com/proxy.html   -- response proxy page</li>
+				<li>http://b.com/proxy.html	  -- request proxy page</li>
+			</ul>
+		<p>
+			假如你当前所在页面的域名为a.com，你要请求的域名为b.com，你必须把proxy.html分别复制到两个域名的根目录下。crossProxy.js能自动识别它所需要的跨域代理页面。
+		</p>
+        <script id="cross-domain-proxy" type="text/javascript" src="http://a.com/crossProxy.js"></script>
+    </body>
+</html>
